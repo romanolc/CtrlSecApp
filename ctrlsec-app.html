@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CtrlSec — Segurança para IA & AR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  
+  :root {
+    --bg-deep:    #040d14;
+    --bg-card:    #071623;
+    --bg-panel:   #0a1e30;
+    --border:     #0e3050;
+    --neon-green: #00f5a0;
+    --neon-blue:  #00c3ff;
+    --neon-teal:  #00e5cc;
+    --accent-red: #ff3b5c;
+    --accent-yellow: #ffd500;
+    --text-hi:    #e8f4ff;
+    --text-mid:   #7eb5d4;
+    --text-lo:    #3a6278;
+    --glow-g: 0 0 12px rgba(0,245,160,0.4), 0 0 30px rgba(0,245,160,0.15);
+    --glow-b: 0 0 12px rgba(0,195,255,0.4), 0 0 30px rgba(0,195,255,0.15);
+    --font-main: 'Exo 2', sans-serif;
+    --font-tech: 'Rajdhani', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+    --radius: 16px;
+    --tab-h: 72px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg-deep);
+    font-family: var(--font-main);
+    color: var(--text-hi);
+    overflow: hidden;
+    position: fixed;
+  }
+
+  /* ===== APP SHELL ===== */
+  #app {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    position: relative;
+    background: var(--bg-deep);
+  }
+
+  /* Scanline overlay */
+  #app::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,
+      transparent, transparent 2px,
+      rgba(0,195,255,0.015) 2px, rgba(0,195,255,0.015) 4px);
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    transform: translateX(30px);
+    background: var(--bg-deep);
+  }
+  .screen.active {
+    opacity: 1; pointer-events: all;
+    transform: translateX(0);
+  }
+  .screen.slide-left { transform: translateX(-30px); }
+
+  /* ===== SHARED COMPONENTS ===== */
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(4,13,20,0.95);
+    backdrop-filter: blur(10px);
+    flex-shrink: 0;
+    min-height: 62px;
+  }
+  .top-bar .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, var(--neon-blue), var(--neon-green));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; box-shadow: var(--glow-b);
+  }
+  .brand-name { font-family: var(--font-tech); font-size: 20px; font-weight: 700; letter-spacing: 1px; color: var(--text-hi); }
+  .brand-sub { font-size: 9px; color: var(--neon-green); letter-spacing: 2px; font-family: var(--font-mono); display: block; }
+
+  .petrobras-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(0,100,0,0.2);
+    border: 1px solid rgba(0,180,0,0.3);
+    border-radius: 8px; padding: 4px 8px;
+  }
+  .petro-logo { display: flex; flex-direction: column; gap: 2px; }
+  .petro-y { width: 22px; height: 4px; background: var(--accent-yellow); border-radius: 1px; }
+  .petro-g { width: 22px; height: 14px; background: #007a00; border-radius: 2px; display: flex; align-items: center; justify-content: center; }
+  .petro-g span { color: white; font-size: 7px; font-weight: 900; letter-spacing: 0.5px; }
+  .petro-name { font-size: 8px; color: #00b300; font-weight: 700; letter-spacing: 1px; }
+
+  .scroll-area {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scroll-area::-webkit-scrollbar { display: none; }
+
+  /* ===== TAB BAR ===== */
+  #tab-bar {
+    height: var(--tab-h);
+    background: rgba(4,13,20,0.97);
+    border-top: 1px solid var(--border);
+    display: none; /* shown after auth */
+    flex-direction: row;
+    backdrop-filter: blur(20px);
+    flex-shrink: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  #tab-bar.visible { display: flex; }
+  .tab-btn {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px; border: none; background: transparent;
+    color: var(--text-lo); cursor: pointer;
+    transition: all 0.25s;
+    position: relative;
+    font-family: var(--font-main);
+  }
+  .tab-btn .tab-icon { font-size: 22px; transition: transform 0.2s; }
+  .tab-btn .tab-label { font-size: 10px; letter-spacing: 0.5px; font-family: var(--font-tech); font-weight: 600; }
+  .tab-btn.active { color: var(--neon-green); }
+  .tab-btn.active .tab-icon { transform: scale(1.15); filter: drop-shadow(0 0 6px var(--neon-green)); }
+  .tab-btn.active::after {
+    content: '';
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 32px; height: 2px;
+    background: var(--neon-green);
+    border-radius: 0 0 4px 4px;
+    box-shadow: var(--glow-g);
+  }
+
+  /* ===== BUTTONS ===== */
+  .btn-primary {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, #00b377, #007acc);
+    border: none; border-radius: var(--radius);
+    color: white; font-size: 16px; font-weight: 700;
+    font-family: var(--font-tech); letter-spacing: 1.5px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,195,255,0.25);
+    transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+    pointer-events: none;
+  }
+  .btn-secondary {
+    width: 100%; padding: 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-mid); font-size: 15px;
+    font-family: var(--font-tech); letter-spacing: 1px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-secondary:active { background: rgba(14,48,80,0.5); }
+  .btn-danger {
+    background: rgba(255,59,92,0.1);
+    border: 1px solid rgba(255,59,92,0.3);
+    color: var(--accent-red);
+    padding: 12px 20px; border-radius: 10px;
+    font-family: var(--font-tech); font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+
+  /* ===== INPUTS ===== */
+  .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .input-label { font-size: 11px; color: var(--text-mid); letter-spacing: 1.5px; font-family: var(--font-mono); text-transform: uppercase; }
+  .input-field {
+    width: 100%; padding: 14px 16px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text-hi); font-size: 15px;
+    font-family: var(--font-main);
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+  }
+  .input-field:focus {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 0 3px rgba(0,195,255,0.1);
+  }
+  .input-field.error { border-color: var(--accent-red); }
+  .input-field::placeholder { color: var(--text-lo); }
+  .error-msg { font-size: 11px; color: var(--accent-red); font-family: var(--font-mono); }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin: 0 16px 12px;
+  }
+  .card-glass {
+    background: rgba(7,22,35,0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(14,48,80,0.6);
+  }
+
+  /* ===== STATUS BADGES ===== */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600;
+    font-family: var(--font-tech); letter-spacing: 0.5px;
+  }
+  .badge-green { background: rgba(0,245,160,0.1); color: var(--neon-green); border: 1px solid rgba(0,245,160,0.25); }
+  .badge-red { background: rgba(255,59,92,0.1); color: var(--accent-red); border: 1px solid rgba(255,59,92,0.25); }
+  .badge-yellow { background: rgba(255,213,0,0.1); color: var(--accent-yellow); border: 1px solid rgba(255,213,0,0.25); }
+  .badge-blue { background: rgba(0,195,255,0.1); color: var(--neon-blue); border: 1px solid rgba(0,195,255,0.25); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse-dot 2s infinite; }
+  @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* ===== LOADING ===== */
+  .loader {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid rgba(0,195,255,0.2);
+    border-top-color: var(--neon-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== OTP INPUTS ===== */
+  .otp-grid { display: flex; gap: 10px; justify-content: center; margin: 24px 0; }
+  .otp-input {
+    width: 48px; height: 56px;
+    background: var(--bg-panel);
+    border: 2px solid var(--border);
+    border-radius: 12px; text-align: center;
+    font-size: 22px; font-weight: 700;
+    color: var(--text-hi); font-family: var(--font-mono);
+    outline: none; transition: all 0.2s;
+    -webkit-appearance: none;
+  }
+  .otp-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 0 3px rgba(0,195,255,0.15); }
+  .otp-input.filled { border-color: var(--neon-green); color: var(--neon-green); }
+
+  /* ===== PIN DOTS ===== */
+  .pin-display { display: flex; gap: 14px; justify-content: center; margin: 24px 0; }
+  .pin-dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border);
+    transition: all 0.15s;
+  }
+  .pin-dot.filled { background: var(--neon-green); border-color: var(--neon-green); box-shadow: var(--glow-g); }
+  .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 260px; margin: 0 auto; }
+  .pin-key {
+    padding: 16px; border: 1px solid var(--border);
+    background: var(--bg-panel); border-radius: 14px;
+    color: var(--text-hi); font-size: 20px; font-weight: 600;
+    font-family: var(--font-tech); cursor: pointer;
+    transition: all 0.15s; text-align: center;
+  }
+  .pin-key:active { background: rgba(0,195,255,0.15); transform: scale(0.93); }
+  .pin-key.del { color: var(--accent-red); font-size: 16px; }
+
+  /* ===== SUCCESS SCREEN ===== */
+  .success-icon {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(0,245,160,0.1);
+    border: 2px solid var(--neon-green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; margin: 0 auto 20px;
+    box-shadow: var(--glow-g);
+    animation: pop-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes pop-in { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* ===== TOKEN DISPLAY ===== */
+  .token-box {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,245,160,0.2);
+    border-radius: 10px; padding: 10px 14px;
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--neon-green); word-break: break-all;
+    letter-spacing: 0.5px;
+  }
+
+  /* ===== HOME HUD ===== */
+  .hud-ring {
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 2px solid rgba(0,245,160,0.2);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; margin: 0 auto 20px;
+  }
+  .hud-ring::before, .hud-ring::after {
+    content: '';
+    position: absolute; border-radius: 50%;
+  }
+  .hud-ring::before {
+    inset: -8px; border: 1px solid rgba(0,195,255,0.15);
+    animation: rotate-slow 8s linear infinite;
+    border-top-color: var(--neon-blue);
+  }
+  .hud-ring::after {
+    inset: -18px; border: 1px solid rgba(0,245,160,0.08);
+    animation: rotate-slow 12s linear infinite reverse;
+    border-right-color: var(--neon-green);
+  }
+  @keyframes rotate-slow { to { transform: rotate(360deg); } }
+  .hud-inner { text-align: center; }
+  .hud-status-text { font-size: 11px; color: var(--neon-green); font-family: var(--font-mono); letter-spacing: 1px; }
+  .hud-lock { font-size: 28px; }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 16px 12px; }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px;
+  }
+  .stat-label { font-size: 10px; color: var(--text-lo); letter-spacing: 1px; font-family: var(--font-mono); margin-bottom: 6px; }
+  .stat-value { font-size: 15px; font-weight: 700; font-family: var(--font-tech); }
+  .stat-value.green { color: var(--neon-green); }
+  .stat-value.blue { color: var(--neon-blue); }
+
+  /* ===== GLASSES CARD ===== */
+  .glass-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 0 16px 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .glass-card:active { border-color: var(--neon-blue); }
+  .glass-img {
+    width: 100%; height: 130px; object-fit: cover;
+    background: linear-gradient(135deg, #071623, #0a1e30);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .glass-img svg { width: 80px; opacity: 0.6; }
+  .glass-img::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to bottom, transparent 60%, var(--bg-card));
+  }
+  .glass-info { padding: 12px 14px; }
+  .glass-name { font-size: 15px; font-weight: 700; font-family: var(--font-tech); margin-bottom: 4px; }
+  .glass-meta { font-size: 12px; color: var(--text-mid); margin-bottom: 10px; }
+  .glass-actions { display: flex; gap: 8px; }
+  .btn-small {
+    flex: 1; padding: 10px;
+    border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    font-family: var(--font-tech); letter-spacing: 0.5px;
+    cursor: pointer; border: none;
+    transition: all 0.15s;
+  }
+  .btn-small:active { transform: scale(0.95); }
+  .btn-reserve { background: rgba(0,195,255,0.15); color: var(--neon-blue); border: 1px solid rgba(0,195,255,0.3); }
+  .btn-use { background: rgba(0,245,160,0.15); color: var(--neon-green); border: 1px solid rgba(0,245,160,0.3); }
+  .btn-use.disabled { background: rgba(255,59,92,0.1); color: var(--accent-red); border-color: rgba(255,59,92,0.2); pointer-events: none; }
+
+  /* ===== AI BAR ===== */
+  .ai-bar {
+    margin: 0 16px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 12px 14px;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .ai-icon { font-size: 20px; }
+  .ai-input {
+    flex: 1; background: transparent; border: none;
+    color: var(--text-hi); font-size: 14px;
+    font-family: var(--font-mono);
+    outline: none;
+  }
+  .ai-input::placeholder { color: var(--text-lo); }
+  .ai-send { background: rgba(0,195,255,0.15); border: 1px solid rgba(0,195,255,0.2); border-radius: 8px; padding: 6px 10px; color: var(--neon-blue); font-size: 14px; cursor: pointer; }
+  .ai-response {
+    margin: 0 16px 12px; padding: 12px 14px;
+    background: rgba(0,245,160,0.05);
+    border: 1px solid rgba(0,245,160,0.15);
+    border-radius: 12px;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--neon-green); line-height: 1.6;
+    display: none;
+  }
+  .ai-response.visible { display: block; animation: fade-up 0.3s ease; }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ===== MODAL ===== */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 1000; display: none;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal-sheet {
+    width: 100%; max-width: 480px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    padding: 24px 20px 40px;
+    animation: slide-up 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal-title { font-size: 18px; font-weight: 700; font-family: var(--font-tech); margin-bottom: 16px; }
+
+  /* ===== PROFILE ===== */
+  .avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: linear-gradient(135deg, #004d70, #003040);
+    border: 2px solid var(--neon-blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; box-shadow: var(--glow-b);
+    margin: 0 auto 12px;
+  }
+
+  /* ===== WELCOME SCREEN ===== */
+  .welcome-bg {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 24px;
+    position: relative; overflow: hidden;
+  }
+  .grid-lines {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,195,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,195,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .welcome-logo { font-size: 56px; margin-bottom: 12px; animation: float 3s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .welcome-title { font-size: 38px; font-weight: 800; font-family: var(--font-tech); letter-spacing: 2px; text-align: center; }
+  .welcome-sub { font-size: 12px; color: var(--text-mid); letter-spacing: 3px; font-family: var(--font-mono); text-align: center; margin-bottom: 8px; }
+  .welcome-desc { font-size: 14px; color: var(--text-mid); text-align: center; line-height: 1.6; margin-bottom: 40px; max-width: 280px; }
+  .partners { display: flex; gap: 12px; align-items: center; margin-bottom: 40px; }
+  .partner-divider { width: 1px; height: 30px; background: var(--border); }
+
+  /* ===== SECTION HEADER ===== */
+  .section-hdr { padding: 16px 16px 8px; display: flex; justify-content: space-between; align-items: center; }
+  .section-title { font-size: 13px; color: var(--text-mid); letter-spacing: 1.5px; font-family: var(--font-mono); text-transform: uppercase; }
+
+  /* ===== SESSION LOCK ===== */
+  #session-lock {
+    position: fixed; inset: 0; z-index: 999;
+    background: rgba(4,13,20,0.97);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px;
+  }
+  #session-lock.visible { display: flex; }
+
+  /* ===== TOAST ===== */
+  #toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 24px; padding: 10px 20px;
+    font-size: 13px; font-family: var(--font-tech);
+    color: var(--text-hi); white-space: nowrap;
+    opacity: 0; transition: all 0.3s;
+    z-index: 5000; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ===== PIN STRENGTH ===== */
+  .pin-strength { display: flex; gap: 6px; margin-top: 8px; }
+  .strength-bar { flex: 1; height: 3px; background: var(--border); border-radius: 2px; transition: background 0.3s; }
+  .strength-bar.active.s1 { background: var(--accent-red); }
+  .strength-bar.active.s2 { background: var(--accent-yellow); }
+  .strength-bar.active.s3 { background: var(--neon-teal); }
+  .strength-bar.active.s4 { background: var(--neon-green); }
+
+  /* Step indicators */
+  .steps { display: flex; gap: 6px; justify-content: center; margin-bottom: 28px; }
+  .step { width: 24px; height: 3px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
+  .step.done { background: var(--neon-green); }
+  .step.active { background: var(--neon-blue); width: 36px; }
+
+  /* Progress screen padding */
+  .screen-body { flex: 1; overflow-y: auto; padding: 24px 20px; -webkit-overflow-scrolling: touch; }
+  .screen-body::-webkit-scrollbar { display: none; }
+
+  .form-title { font-size: 22px; font-weight: 800; font-family: var(--font-tech); margin-bottom: 4px; }
+  .form-sub { font-size: 13px; color: var(--text-mid); margin-bottom: 24px; line-height: 1.5; }
+
+  /* Reservas */
+  .reserva-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 0 16px 12px;
+    padding: 14px;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .reserva-img {
+    width: 56px; height: 56px; border-radius: 10px;
+    background: var(--bg-panel); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .reserva-info { flex: 1; }
+  .reserva-name { font-size: 14px; font-weight: 700; font-family: var(--font-tech); margin-bottom: 3px; }
+  .reserva-date { font-size: 11px; color: var(--text-mid); font-family: var(--font-mono); }
+
+  /* ===== SESSION TIMER ===== */
+  .session-timer { font-family: var(--font-mono); color: var(--neon-blue); font-size: 13px; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-lo); font-family: var(--font-tech); }
+  .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+  /* Inline loading */
+  .loading-bar { height: 2px; background: linear-gradient(90deg, var(--neon-blue), var(--neon-green)); animation: loading-anim 1.2s linear infinite; border-radius: 1px; margin: 8px 0; }
+  @keyframes loading-anim { 0% { transform: scaleX(0) translateX(-100%); } 100% { transform: scaleX(1) translateX(100%); } }
+
+</style>
+</head>
+<body>
+
+<!-- ===== APP SHELL ===== -->
+<div id="app">
+
+  <!-- ===== SCREEN: WELCOME ===== -->
+  <div class="screen active" id="screen-welcome">
+    <div class="welcome-bg">
+      <div class="grid-lines"></div>
+      <div class="welcome-logo">🔒</div>
+      <div class="welcome-title">CtrlSec</div>
+      <div class="welcome-sub">Segurança para IA & AR</div>
+      <div class="welcome-desc">Sistema Zero Trust de gerenciamento de dispositivos AR para ambientes industriais críticos.</div>
+      <div class="partners">
+        <div style="text-align:center">
+          <div class="brand-icon" style="margin:0 auto 4px">🛡️</div>
+          <div style="font-size:9px;color:var(--text-mid);font-family:var(--font-mono)">CtrlSec</div>
+        </div>
+        <div class="partner-divider"></div>
+        <div style="text-align:center">
+          <div class="petro-logo" style="margin:0 auto 4px">
+            <div class="petro-y"></div>
+            <div class="petro-g"><span>BR</span></div>
+          </div>
+          <div style="font-size:9px;color:#00b300;font-family:var(--font-mono)">PETROBRAS</div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="goTo('screen-register')" style="max-width:280px">COMEÇAR →</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: REGISTER ===== -->
+  <div class="screen" id="screen-register">
+    <div class="top-bar">
+      <button onclick="goTo('screen-welcome')" style="background:none;border:none;color:var(--text-mid);font-size:22px;cursor:pointer">←</button>
+      <div class="brand"><div class="brand-icon">🛡️</div><div><span class="brand-name">CtrlSec</span><span class="brand-sub">CADASTRO</span></div></div>
+      <div style="width:32px"></div>
+    </div>
+    <div class="screen-body">
+      <div class="steps">
+        <div class="step active"></div><div class="step"></div><div class="step"></div><div class="step"></div>
+      </div>
+      <div class="form-title">Identificação</div>
+      <div class="form-sub">Insira seus dados para acessar o sistema seguro Petrobras.</div>
+
+      <div class="input-group">
+        <div class="input-label">Nome Completo *</div>
+        <input type="text" id="inp-nome" class="input-field" placeholder="Ex: João da Silva" autocomplete="off">
+        <div class="error-msg" id="err-nome" style="display:none">Nome é obrigatório</div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Telefone *</div>
+        <input type="tel" id="inp-phone" class="input-field" placeholder="(11) 99999-9999" maxlength="15">
+        <div class="error-msg" id="err-phone" style="display:none">Telefone inválido</div>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Email (opcional)</div>
+        <input type="email" id="inp-email" class="input-field" placeholder="seu@email.com">
+      </div>
+
+      <button class="btn-primary" onclick="submitRegister()" style="margin-top:8px">CONTINUAR →</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: OTP ===== -->
+  <div class="screen" id="screen-otp">
+    <div class="top-bar">
+      <button onclick="goTo('screen-register')" style="background:none;border:none;color:var(--text-mid);font-size:22px;cursor:pointer">←</button>
+      <div class="brand"><div class="brand-icon">🛡️</div><div><span class="brand-name">CtrlSec</span><span class="brand-sub">VERIFICAÇÃO</span></div></div>
+      <div style="width:32px"></div>
+    </div>
+    <div class="screen-body">
+      <div class="steps">
+        <div class="step done"></div><div class="step active"></div><div class="step"></div><div class="step"></div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:40px;margin-bottom:12px">📱</div>
+        <div class="form-title" style="text-align:center">Código SMS</div>
+        <div class="form-sub" style="text-align:center">Enviamos um código de 6 dígitos para <span id="otp-phone-display" style="color:var(--neon-blue)"></span></div>
+      </div>
+      <div class="otp-grid" id="otp-grid">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+        <input class="otp-input" maxlength="1" type="number" pattern="[0-9]*" inputmode="numeric">
+      </div>
+      <div id="otp-status" style="text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--text-mid);margin-bottom:16px">
+        💡 Código de teste: <strong style="color:var(--neon-blue)">123456</strong>
+      </div>
+      <button class="btn-primary" onclick="verifyOTP()">VERIFICAR CÓDIGO</button>
+      <button class="btn-secondary" style="margin-top:10px" onclick="showToast('Código reenviado!')">Reenviar código</button>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: PIN ===== -->
+  <div class="screen" id="screen-pin">
+    <div class="top-bar">
+      <button onclick="goTo('screen-otp')" style="background:none;border:none;color:var(--text-mid);font-size:22px;cursor:pointer">←</button>
+      <div class="brand"><div class="brand-icon">🛡️</div><div><span class="brand-name">CtrlSec</span><span class="brand-sub">CRIAR PIN</span></div></div>
+      <div style="width:32px"></div>
+    </div>
+    <div class="screen-body">
+      <div class="steps">
+        <div class="step done"></div><div class="step done"></div><div class="step active"></div><div class="step"></div>
+      </div>
+      <div style="text-align:center">
+        <div class="form-title" style="text-align:center" id="pin-step-title">Criar PIN</div>
+        <div class="form-sub" style="text-align:center" id="pin-step-sub">Escolha um PIN de 4 a 6 dígitos para acesso rápido.</div>
+      </div>
+      <div class="pin-display" id="pin-display">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+      </div>
+      <div id="pin-strength-wrap" style="margin-bottom:16px">
+        <div style="font-size:10px;color:var(--text-lo);font-family:var(--font-mono);text-align:center;margin-bottom:6px" id="pin-strength-label">Força do PIN</div>
+        <div class="pin-strength">
+          <div class="strength-bar" id="sb1"></div>
+          <div class="strength-bar" id="sb2"></div>
+          <div class="strength-bar" id="sb3"></div>
+          <div class="strength-bar" id="sb4"></div>
+        </div>
+      </div>
+      <div class="pin-keypad">
+        <div class="pin-key" onclick="pinKey('1')">1</div>
+        <div class="pin-key" onclick="pinKey('2')">2</div>
+        <div class="pin-key" onclick="pinKey('3')">3</div>
+        <div class="pin-key" onclick="pinKey('4')">4</div>
+        <div class="pin-key" onclick="pinKey('5')">5</div>
+        <div class="pin-key" onclick="pinKey('6')">6</div>
+        <div class="pin-key" onclick="pinKey('7')">7</div>
+        <div class="pin-key" onclick="pinKey('8')">8</div>
+        <div class="pin-key" onclick="pinKey('9')">9</div>
+        <div class="pin-key" onclick="pinKey('ok')" style="font-size:13px;color:var(--neon-green);border-color:rgba(0,245,160,0.3)">OK</div>
+        <div class="pin-key" onclick="pinKey('0')">0</div>
+        <div class="pin-key del" onclick="pinKey('del')">⌫</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: AUTH SUCCESS ===== -->
+  <div class="screen" id="screen-success">
+    <div class="screen-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh">
+      <div id="auth-loading" style="text-align:center">
+        <div style="font-size:48px;margin-bottom:20px">⚙️</div>
+        <div style="font-family:var(--font-mono);color:var(--neon-blue);font-size:13px;margin-bottom:8px" id="auth-loading-text">Inicializando Zero Trust...</div>
+        <div class="loading-bar" style="width:200px;margin:0 auto"></div>
+      </div>
+      <div id="auth-done" style="text-align:center;display:none">
+        <div class="success-icon">✓</div>
+        <div class="form-title" style="text-align:center;margin-bottom:8px">Autenticação Concluída</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
+          <div class="badge badge-green" style="justify-content:center">🔒 Zero Trust Ativo</div>
+          <div class="badge badge-blue" style="justify-content:center">🛡️ Sessão Segura</div>
+        </div>
+        <div style="text-align:left;margin-bottom:20px">
+          <div style="font-size:10px;color:var(--text-lo);font-family:var(--font-mono);margin-bottom:6px">SEU TOKEN DE ACESSO</div>
+          <div class="token-box" id="token-display">CTRLSEC-USER-...</div>
+        </div>
+        <button class="btn-primary" onclick="enterApp()">ACESSAR SISTEMA →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP SCREENS ===== -->
+
+  <!-- HOME -->
+  <div class="screen" id="screen-home">
+    <div class="top-bar">
+      <div class="brand"><div class="brand-icon">🛡️</div><div><span class="brand-name">CtrlSec</span><span class="brand-sub">SISTEMA ATIVO</span></div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="petrobras-badge">
+          <div class="petro-logo"><div class="petro-y"></div><div class="petro-g"><span>BR</span></div></div>
+          <span class="petro-name">PETROBRAS</span>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-area">
+      <!-- HUD -->
+      <div style="padding:24px 16px 16px;text-align:center">
+        <div class="hud-ring">
+          <div class="hud-inner">
+            <div class="hud-lock">🔐</div>
+            <div class="hud-status-text">SEGURO</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-mid);font-family:var(--font-mono)">Sessão ativa: <span class="session-timer" id="session-timer-home">00:00</span></div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">STATUS</div>
+          <div class="stat-value green"><span class="dot" style="display:inline-block;margin-right:5px;background:var(--neon-green)"></span>Autenticado</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">MODO</div>
+          <div class="stat-value blue">Zero Trust</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">CRIPTOGRAFIA</div>
+          <div class="stat-value green">AES-256</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">USUÁRIO</div>
+          <div class="stat-value" style="font-size:12px" id="home-user-name">—</div>
+        </div>
+      </div>
+
+      <!-- AI Bar -->
+      <div class="section-hdr"><span class="section-title">🤖 Assistente IA</span></div>
+      <div class="ai-bar">
+        <span class="ai-icon">🤖</span>
+        <input class="ai-input" id="ai-input" placeholder="Digite um comando..." onkeydown="if(event.key==='Enter')sendAI()">
+        <button class="ai-send" onclick="sendAI()">▶</button>
+      </div>
+      <div class="ai-response" id="ai-response"></div>
+
+      <!-- Quick actions -->
+      <div class="section-hdr"><span class="section-title">⚡ Acesso Rápido</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 12px">
+        <button class="btn-small btn-use" style="padding:14px;font-size:13px" onclick="switchTab('oculos')">👓 Ver Óculos</button>
+        <button class="btn-small btn-reserve" style="padding:14px;font-size:13px" onclick="switchTab('reservas')">📅 Reservas</button>
+      </div>
+
+      <!-- Token info -->
+      <div class="card" style="margin-bottom:24px">
+        <div style="font-size:10px;color:var(--text-lo);font-family:var(--font-mono);margin-bottom:6px">TOKEN ATIVO</div>
+        <div class="token-box" id="home-token" style="font-size:10px">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÓCULOS -->
+  <div class="screen" id="screen-oculos">
+    <div class="top-bar">
+      <div class="brand"><div class="brand-icon">👓</div><div><span class="brand-name">Dispositivos</span><span class="brand-sub">AR GLASSES</span></div></div>
+      <div class="badge badge-green"><span class="dot"></span><span id="avail-count">3</span> disponíveis</div>
+    </div>
+    <div class="scroll-area" id="glasses-list">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- RESERVAS -->
+  <div class="screen" id="screen-reservas">
+    <div class="top-bar">
+      <div class="brand"><div class="brand-icon">📅</div><div><span class="brand-name">Reservas</span><span class="brand-sub">MINHAS RESERVAS</span></div></div>
+    </div>
+    <div class="scroll-area">
+      <div id="reservas-list"></div>
+    </div>
+  </div>
+
+  <!-- PERFIL -->
+  <div class="screen" id="screen-perfil">
+    <div class="top-bar">
+      <div class="brand"><div class="brand-icon">👤</div><div><span class="brand-name">Perfil</span><span class="brand-sub">CONTA SEGURA</span></div></div>
+    </div>
+    <div class="scroll-area">
+      <div style="padding:24px 16px;text-align:center">
+        <div class="avatar">👤</div>
+        <div style="font-size:20px;font-weight:700;font-family:var(--font-tech)" id="profile-name">—</div>
+        <div style="font-size:13px;color:var(--text-mid);margin:4px 0 12px" id="profile-phone">—</div>
+        <div class="badge badge-green" style="margin:0 auto 20px;display:inline-flex">🔒 Zero Trust Ativo</div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:10px;color:var(--text-lo);font-family:var(--font-mono);margin-bottom:8px">INFORMAÇÕES DE SESSÃO</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-mid)">Tempo ativo</span>
+            <span class="session-timer" id="session-timer-profile">00:00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-mid)">Criptografia</span>
+            <span style="color:var(--neon-green)">AES-256-GCM</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--text-mid)">Protocolo</span>
+            <span style="color:var(--neon-blue)">Zero Trust v2.1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:10px;color:var(--text-lo);font-family:var(--font-mono);margin-bottom:8px">TOKEN DE ACESSO</div>
+        <div class="token-box" id="profile-token" style="font-size:10px">—</div>
+      </div>
+
+      <div style="padding:0 16px 32px">
+        <button class="btn-danger" style="width:100%;margin-bottom:10px" onclick="lockSession()">🔒 Bloquear Sessão</button>
+        <button class="btn-secondary" onclick="logout()">Encerrar Sessão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB BAR ===== -->
+  <div id="tab-bar">
+    <button class="tab-btn active" id="tab-home" onclick="switchTab('home')">
+      <span class="tab-icon">🏠</span><span class="tab-label">Home</span>
+    </button>
+    <button class="tab-btn" id="tab-oculos" onclick="switchTab('oculos')">
+      <span class="tab-icon">👓</span><span class="tab-label">Óculos</span>
+    </button>
+    <button class="tab-btn" id="tab-reservas" onclick="switchTab('reservas')">
+      <span class="tab-icon">📅</span><span class="tab-label">Reservas</span>
+    </button>
+    <button class="tab-btn" id="tab-perfil" onclick="switchTab('perfil')">
+      <span class="tab-icon">👤</span><span class="tab-label">Perfil</span>
+    </button>
+  </div>
+
+</div>
+
+<!-- ===== MODAL: RESERVE ===== -->
+<div class="modal-overlay" id="modal-reserve">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📅 Reservar Dispositivo</div>
+    <div id="modal-device-info" style="display:flex;gap:12px;align-items:center;background:var(--bg-card);border-radius:12px;padding:12px;margin-bottom:16px">
+      <span style="font-size:28px">👓</span>
+      <div>
+        <div style="font-weight:700;font-family:var(--font-tech)" id="modal-device-name">—</div>
+        <div style="font-size:12px;color:var(--text-mid)" id="modal-device-loc">—</div>
+      </div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Data</div>
+      <input type="date" id="reserve-date" class="input-field">
+    </div>
+    <div class="input-group">
+      <div class="input-label">Horário</div>
+      <select id="reserve-time" class="input-field" style="appearance:none">
+        <option value="08:00">08:00 — Turno Manhã</option>
+        <option value="12:00">12:00 — Turno Tarde</option>
+        <option value="18:00">18:00 — Turno Noite</option>
+        <option value="00:00">00:00 — Turno Madrugada</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="confirmReserve()" style="margin-top:8px">CONFIRMAR RESERVA</button>
+    <button class="btn-secondary" style="margin-top:8px" onclick="closeModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== SESSION LOCK ===== -->
+<div id="session-lock">
+  <div style="font-size:48px;margin-bottom:12px">🔒</div>
+  <div style="font-size:20px;font-weight:700;font-family:var(--font-tech);margin-bottom:6px">Sessão Pausada</div>
+  <div style="font-size:13px;color:var(--text-mid);margin-bottom:28px;text-align:center">Inatividade detectada.<br>Revalide com seu PIN para continuar.</div>
+  <div class="pin-display" id="lock-pin-display">
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-keypad" style="max-width:260px">
+    <div class="pin-key" onclick="lockPinKey('1')">1</div>
+    <div class="pin-key" onclick="lockPinKey('2')">2</div>
+    <div class="pin-key" onclick="lockPinKey('3')">3</div>
+    <div class="pin-key" onclick="lockPinKey('4')">4</div>
+    <div class="pin-key" onclick="lockPinKey('5')">5</div>
+    <div class="pin-key" onclick="lockPinKey('6')">6</div>
+    <div class="pin-key" onclick="lockPinKey('7')">7</div>
+    <div class="pin-key" onclick="lockPinKey('8')">8</div>
+    <div class="pin-key" onclick="lockPinKey('9')">9</div>
+    <div class="pin-key" onclick="lockPinKey('ok')" style="font-size:13px;color:var(--neon-green)">OK</div>
+    <div class="pin-key" onclick="lockPinKey('0')">0</div>
+    <div class="pin-key del" onclick="lockPinKey('del')">⌫</div>
+  </div>
+  <div id="lock-err" style="margin-top:12px;font-size:12px;color:var(--accent-red);font-family:var(--font-mono);display:none">PIN incorreto</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// =====================
+// STATE
+// =====================
+const state = {
+  currentScreen: 'screen-welcome',
+  nome: '', phone: '', email: '',
+  token: '', pin: '', pinStep: 'create', pinCreate: '', pinConfirm: '',
+  sessionStart: null, sessionTimer: null,
+  inactivityTimer: null,
+  reservingId: null,
+  glasses: [
+    { id: 1, name: 'AR Glasses Petrobras #01', location: 'Plataforma Offshore A', status: 'disponivel', user: null },
+    { id: 2, name: 'AR Glasses Petrobras #02', location: 'Refinaria REPAR — PR', status: 'em-uso', user: 'Carlos M.' },
+    { id: 3, name: 'AR Glasses Petrobras #03', location: 'REDUC — Rio de Janeiro', status: 'reservado', user: 'Ana L.' },
+    { id: 4, name: 'AR Glasses CtrlSec #04', location: 'RNEST — Pernambuco', status: 'disponivel', user: null },
+    { id: 5, name: 'AR Glasses CtrlSec #05', location: 'REPLAN — São Paulo', status: 'disponivel', user: null },
+  ],
+  reservas: []
+};
+
+const AI_COMMANDS = {
+  'oculos': { action: () => switchTab('oculos'), msg: '✔ Abrindo lista de óculos disponíveis...\n→ 3 dispositivos encontrados.' },
+  'óculos': { action: () => switchTab('oculos'), msg: '✔ Abrindo lista de óculos disponíveis...\n→ 3 dispositivos encontrados.' },
+  'reservas': { action: () => switchTab('reservas'), msg: '✔ Carregando suas reservas ativas...' },
+  'home': { action: () => switchTab('home'), msg: '✔ Retornando ao Dashboard.' },
+  'perfil': { action: () => switchTab('perfil'), msg: '✔ Abrindo seu perfil seguro.' },
+  'status': { action: null, msg: '✔ Sistema operacional.\n🟢 Zero Trust: ATIVO\n🔒 Criptografia: AES-256-GCM\n📡 Latência: 12ms' },
+  'logout': { action: () => logout(), msg: '⚠ Encerrando sessão...' },
+  'bloquear': { action: () => lockSession(), msg: '🔒 Bloqueando sessão por segurança...' },
+};
+
+// =====================
+// NAVIGATION
+// =====================
+function goTo(screenId) {
+  const current = document.getElementById(state.currentScreen);
+  const next = document.getElementById(screenId);
+  current.classList.remove('active');
+  current.classList.add('slide-left');
+  setTimeout(() => current.classList.remove('slide-left'), 350);
+  next.classList.add('active');
+  state.currentScreen = screenId;
+  resetInactivity();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  const screens = ['screen-home','screen-oculos','screen-reservas','screen-perfil'];
+  screens.forEach(s => {
+    const el = document.getElementById(s);
+    el.classList.remove('active');
+  });
+
+  const target = document.getElementById('screen-' + tab);
+  target.classList.add('active');
+  state.currentScreen = 'screen-' + tab;
+
+  if (tab === 'oculos') renderGlasses();
+  if (tab === 'reservas') renderReservas();
+  resetInactivity();
+}
+
+// =====================
+// REGISTER
+// =====================
+function phoneFormat(e) {
+  let v = e.target.value.replace(/\D/g, '');
+  if (v.length > 11) v = v.slice(0,11);
+  let f = '';
+  if (v.length > 0) f = '(' + v.slice(0,2);
+  if (v.length > 2) f += ') ' + v.slice(2, v.length > 7 ? 7 : v.length);
+  if (v.length > 7) f += '-' + v.slice(7,11);
+  e.target.value = f;
+}
+document.getElementById('inp-phone').addEventListener('input', phoneFormat);
+
+function submitRegister() {
+  const nome = document.getElementById('inp-nome').value.trim();
+  const phone = document.getElementById('inp-phone').value.trim();
+  let ok = true;
+  document.getElementById('err-nome').style.display = nome ? 'none' : 'block';
+  document.getElementById('inp-nome').classList.toggle('error', !nome);
+  const rawPhone = phone.replace(/\D/g,'');
+  const phoneOk = rawPhone.length >= 10;
+  document.getElementById('err-phone').style.display = phoneOk ? 'none' : 'block';
+  document.getElementById('inp-phone').classList.toggle('error', !phoneOk);
+  if (!nome || !phoneOk) return;
+  state.nome = nome;
+  state.phone = phone;
+  state.email = document.getElementById('inp-email').value.trim();
+  document.getElementById('otp-phone-display').textContent = phone;
+  goTo('screen-otp');
+  setupOTP();
+}
+
+// =====================
+// OTP
+// =====================
+function setupOTP() {
+  const inputs = document.querySelectorAll('.otp-input');
+  inputs.forEach((inp, i) => {
+    inp.value = '';
+    inp.classList.remove('filled');
+    inp.addEventListener('input', e => {
+      e.target.value = e.target.value.slice(-1);
+      e.target.classList.toggle('filled', !!e.target.value);
+      if (e.target.value && i < inputs.length - 1) inputs[i+1].focus();
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) inputs[i-1].focus();
+    });
+  });
+  setTimeout(() => inputs[0].focus(), 300);
+}
+
+function verifyOTP() {
+  const inputs = document.querySelectorAll('.otp-input');
+  const code = Array.from(inputs).map(i => i.value).join('');
+  const el = document.getElementById('otp-status');
+  if (code.length < 6) { showToast('Preencha todos os dígitos'); return; }
+  el.innerHTML = '<span class="loader"></span> Verificando...';
+  setTimeout(() => {
+    if (code === '123456') {
+      el.innerHTML = '✅ <span style="color:var(--neon-green)">Código validado com sucesso!</span>';
+      setTimeout(() => goTo('screen-pin'), 800);
+    } else {
+      el.innerHTML = '❌ <span style="color:var(--accent-red)">Código inválido. Tente 123456.</span>';
+      inputs.forEach(i => { i.classList.add('error'); i.classList.remove('filled'); });
+      setTimeout(() => inputs.forEach(i => i.classList.remove('error')), 1200);
+    }
+  }, 1200);
+}
+
+// =====================
+// PIN
+// =====================
+let pinCurrent = '';
+function pinKey(k) {
+  if (k === 'del') { pinCurrent = pinCurrent.slice(0,-1); }
+  else if (k === 'ok') { submitPin(); return; }
+  else if (pinCurrent.length < 6) { pinCurrent += k; }
+  updatePinDisplay('pin-display', pinCurrent);
+  if (state.pinStep === 'create') updatePinStrength(pinCurrent);
+}
+function updatePinDisplay(elId, val) {
+  const dots = document.getElementById(elId).querySelectorAll('.pin-dot');
+  dots.forEach((d, i) => d.classList.toggle('filled', i < val.length));
+}
+function updatePinStrength(pin) {
+  const len = pin.length;
+  const bars = [1,2,3,4].map(i => document.getElementById('sb'+i));
+  const classes = ['s1','s2','s3','s4'];
+  const labels = ['', 'Fraco', 'Regular', 'Bom', 'Forte'];
+  bars.forEach((b, i) => {
+    b.className = 'strength-bar';
+    if (i < len - 2) { b.classList.add('active', classes[Math.min(len-3,3)]); }
+  });
+  document.getElementById('pin-strength-label').textContent = labels[Math.min(len, 4)] || 'Força do PIN';
+}
+function submitPin() {
+  if (pinCurrent.length < 4) { showToast('PIN muito curto'); return; }
+  if (state.pinStep === 'create') {
+    state.pinCreate = pinCurrent;
+    pinCurrent = '';
+    state.pinStep = 'confirm';
+    document.getElementById('pin-step-title').textContent = 'Confirmar PIN';
+    document.getElementById('pin-step-sub').textContent = 'Digite o mesmo PIN para confirmar.';
+    document.getElementById('pin-strength-wrap').style.display = 'none';
+    updatePinDisplay('pin-display', '');
+  } else {
+    if (pinCurrent !== state.pinCreate) {
+      showToast('PINs não coincidem');
+      pinCurrent = '';
+      updatePinDisplay('pin-display', '');
+      return;
+    }
+    state.pin = state.pinCreate;
+    state.pinStep = 'create';
+    finishAuth();
+  }
+}
+
+// =====================
+// AUTH COMPLETE
+// =====================
+function finishAuth() {
+  goTo('screen-success');
+  const token = 'CTRLSEC-USER-' + Math.random().toString(36).slice(2,8).toUpperCase() + '-' + Date.now();
+  state.token = token;
+  localStorage.setItem('cs_nome', state.nome);
+  localStorage.setItem('cs_phone', state.phone);
+  localStorage.setItem('cs_token', token);
+  localStorage.setItem('cs_authenticated', '1');
+
+  const loadingTexts = [
+    'Inicializando Zero Trust...', 'Validando credenciais...', 'Gerando token seguro...',
+    'Estabelecendo sessão criptografada...', 'Concluído!'
+  ];
+  let i = 0;
+  const lt = document.getElementById('auth-loading-text');
+  const interval = setInterval(() => {
+    lt.textContent = loadingTexts[i++];
+    if (i >= loadingTexts.length) {
+      clearInterval(interval);
+      document.getElementById('auth-loading').style.display = 'none';
+      document.getElementById('auth-done').style.display = 'block';
+      document.getElementById('token-display').textContent = token.slice(0, 28) + '...';
+    }
+  }, 700);
+}
+
+function enterApp() {
+  document.getElementById('tab-bar').classList.add('visible');
+  document.getElementById('home-user-name').textContent = state.nome.split(' ')[0];
+  document.getElementById('home-token').textContent = state.token.slice(0,28) + '...';
+  document.getElementById('profile-name').textContent = state.nome;
+  document.getElementById('profile-phone').textContent = state.phone;
+  document.getElementById('profile-token').textContent = state.token.slice(0,28) + '...';
+  goTo('screen-home');
+  state.sessionStart = Date.now();
+  startSessionTimer();
+  startInactivityTimer();
+}
+
+// =====================
+// SESSION TIMER
+// =====================
+function startSessionTimer() {
+  state.sessionTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - state.sessionStart) / 1000);
+    const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+    const s = String(elapsed % 60).padStart(2,'0');
+    const txt = m + ':' + s;
+    document.querySelectorAll('.session-timer').forEach(el => el.textContent = txt);
+  }, 1000);
+}
+
+// =====================
+// INACTIVITY LOCK (3 min)
+// =====================
+function startInactivityTimer() {
+  resetInactivity();
+}
+function resetInactivity() {
+  clearTimeout(state.inactivityTimer);
+  state.inactivityTimer = setTimeout(() => lockSession(), 3 * 60 * 1000);
+}
+document.addEventListener('touchstart', resetInactivity);
+document.addEventListener('click', resetInactivity);
+
+// =====================
+// SESSION LOCK
+// =====================
+let lockPin = '';
+function lockSession() {
+  lockPin = '';
+  updatePinDisplay('lock-pin-display', '');
+  document.getElementById('lock-err').style.display = 'none';
+  document.getElementById('session-lock').classList.add('visible');
+}
+function lockPinKey(k) {
+  if (k === 'del') { lockPin = lockPin.slice(0,-1); }
+  else if (k === 'ok') {
+    if (lockPin === state.pin) {
+      document.getElementById('session-lock').classList.remove('visible');
+      lockPin = '';
+      showToast('Sessão restaurada ✓');
+      resetInactivity();
+    } else {
+      document.getElementById('lock-err').style.display = 'block';
+      lockPin = '';
+      updatePinDisplay('lock-pin-display', '');
+    }
+    return;
+  } else if (lockPin.length < 6) { lockPin += k; }
+  updatePinDisplay('lock-pin-display', lockPin);
+}
+
+// =====================
+// GLASSES
+// =====================
+function renderGlasses() {
+  const avail = state.glasses.filter(g => g.status === 'disponivel').length;
+  document.getElementById('avail-count').textContent = avail;
+  const list = document.getElementById('glasses-list');
+  list.innerHTML = '<div style="height:8px"></div>';
+  state.glasses.forEach(g => {
+    list.innerHTML += glassCard(g);
+  });
+}
+
+function glassCard(g) {
+  const statusMap = {
+    'disponivel': '<span class="badge badge-green"><span class="dot"></span>Disponível</span>',
+    'em-uso': '<span class="badge badge-red"><span class="dot" style="background:var(--accent-red)"></span>Em uso</span>',
+    'reservado': '<span class="badge badge-yellow"><span class="dot" style="background:var(--accent-yellow)"></span>Reservado</span>',
+  };
+  const isAvail = g.status === 'disponivel';
+  return `
+  <div class="glass-card">
+    <div class="glass-img">
+      ${glassIcon(g.id)}
+    </div>
+    <div class="glass-info">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:4px">
+        <div class="glass-name">${g.name}</div>
+        ${statusMap[g.status]}
+      </div>
+      <div class="glass-meta">📍 ${g.location}${g.user ? ' · <span style="color:var(--neon-blue)">'+g.user+'</span>' : ''}</div>
+      <div class="glass-actions">
+        <button class="btn-small btn-reserve" onclick="openReserve(${g.id})">📅 Reservar</button>
+        <button class="btn-small btn-use ${isAvail ? '' : 'disabled'}" onclick="${isAvail ? 'useGlass('+g.id+')' : ''}">
+          ${isAvail ? '▶ Utilizar' : (g.status === 'em-uso' ? '⛔ Em uso' : '⏳ Reservado')}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function glassIcon(id) {
+  const colors = ['#00c3ff','#00f5a0','#ffd500','#ff3b5c','#a78bfa'];
+  const c = colors[(id-1) % colors.length];
+  return `<svg viewBox="0 0 120 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="5" y="18" width="45" height="26" rx="8" stroke="${c}" stroke-width="2.5" fill="rgba(0,0,0,0.3)"/>
+    <rect x="70" y="18" width="45" height="26" rx="8" stroke="${c}" stroke-width="2.5" fill="rgba(0,0,0,0.3)"/>
+    <line x1="50" y1="28" x2="70" y2="28" stroke="${c}" stroke-width="2.5"/>
+    <line x1="5" y1="28" x2="0" y2="15" stroke="${c}" stroke-width="2" stroke-linecap="round"/>
+    <line x1="115" y1="28" x2="120" y2="15" stroke="${c}" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="27.5" cy="31" r="6" fill="${c}" opacity="0.15"/>
+    <circle cx="27.5" cy="31" r="3" fill="${c}" opacity="0.5"/>
+    <circle cx="92.5" cy="31" r="6" fill="${c}" opacity="0.15"/>
+    <circle cx="92.5" cy="31" r="3" fill="${c}" opacity="0.5"/>
+  </svg>`;
+}
+
+function useGlass(id) {
+  const g = state.glasses.find(x => x.id === id);
+  if (!g || g.status !== 'disponivel') return;
+  g.status = 'em-uso';
+  g.user = state.nome.split(' ')[0];
+  renderGlasses();
+  showToast('✅ Sessão iniciada com ' + g.name);
+}
+
+// =====================
+// RESERVAS
+// =====================
+function openReserve(id) {
+  const g = state.glasses.find(x => x.id === id);
+  state.reservingId = id;
+  document.getElementById('modal-device-name').textContent = g.name;
+  document.getElementById('modal-device-loc').textContent = g.location;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('reserve-date').value = today;
+  document.getElementById('modal-reserve').classList.add('visible');
+}
+function closeModal() {
+  document.getElementById('modal-reserve').classList.remove('visible');
+}
+function confirmReserve() {
+  const g = state.glasses.find(x => x.id === state.reservingId);
+  const date = document.getElementById('reserve-date').value;
+  const time = document.getElementById('reserve-time').value;
+  const res = { id: Date.now(), glassId: g.id, name: g.name, date, time, status: 'ativo' };
+  state.reservas.push(res);
+  g.status = 'reservado';
+  g.user = state.nome.split(' ')[0];
+  closeModal();
+  showToast('✅ Reserva confirmada!');
+  renderGlasses();
+}
+
+function renderReservas() {
+  const list = document.getElementById('reservas-list');
+  if (!state.reservas.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><div>Nenhuma reserva ativa</div><div style="font-size:12px;margin-top:8px">Acesse a aba Óculos para reservar</div></div>`;
+    return;
+  }
+  list.innerHTML = '<div style="height:8px"></div>';
+  state.reservas.forEach(r => {
+    list.innerHTML += `
+    <div class="reserva-card">
+      <div class="reserva-img">👓</div>
+      <div class="reserva-info">
+        <div class="reserva-name">${r.name}</div>
+        <div class="reserva-date">📅 ${r.date} às ${r.time}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <span class="badge ${r.status === 'ativo' ? 'badge-green' : 'badge-blue'}">${r.status === 'ativo' ? 'Ativo' : 'Finalizado'}</span>
+        <button class="btn-danger" style="padding:6px 10px;font-size:11px" onclick="cancelReserva(${r.id})">Cancelar</button>
+      </div>
+    </div>`;
+  });
+}
+
+function cancelReserva(id) {
+  const r = state.reservas.find(x => x.id === id);
+  if (!r) return;
+  const g = state.glasses.find(x => x.id === r.glassId);
+  if (g) { g.status = 'disponivel'; g.user = null; }
+  state.reservas = state.reservas.filter(x => x.id !== id);
+  renderReservas();
+  showToast('Reserva cancelada');
+}
+
+// =====================
+// AI ASSISTANT
+// =====================
+function sendAI() {
+  const input = document.getElementById('ai-input');
+  const txt = input.value.trim().toLowerCase();
+  if (!txt) return;
+  const resp = document.getElementById('ai-response');
+  resp.classList.remove('visible');
+  resp.textContent = '⏳ Processando comando...';
+  resp.classList.add('visible');
+  setTimeout(() => {
+    let found = null;
+    for (const [key, val] of Object.entries(AI_COMMANDS)) {
+      if (txt.includes(key)) { found = val; break; }
+    }
+    if (found) {
+      resp.textContent = '🤖 Comando reconhecido\n\n' + found.msg;
+      if (found.action) setTimeout(found.action, 600);
+    } else {
+      resp.textContent = '🤖 Comando recebido.\n\n⚠ Não reconhecido. Tente: "oculos", "reservas", "status", "home", "perfil"';
+    }
+    input.value = '';
+  }, 800);
+}
+
+// =====================
+// LOGOUT
+// =====================
+function logout() {
+  clearInterval(state.sessionTimer);
+  clearTimeout(state.inactivityTimer);
+  localStorage.clear();
+  document.getElementById('tab-bar').classList.remove('visible');
+  document.getElementById('session-lock').classList.remove('visible');
+  state.nome = ''; state.phone = ''; state.token = ''; state.pin = '';
+  state.reservas = []; state.pinStep = 'create'; state.pinCreate = ''; pinCurrent = '';
+  state.glasses.forEach(g => { if (g.id <= 3) {} }); // keep default states
+  state.glasses[0].status = 'disponivel'; state.glasses[0].user = null;
+  state.glasses[3].status = 'disponivel'; state.glasses[3].user = null;
+  state.glasses[4].status = 'disponivel'; state.glasses[4].user = null;
+  document.getElementById('inp-nome').value = '';
+  document.getElementById('inp-phone').value = '';
+  document.getElementById('inp-email').value = '';
+  // reset OTP
+  document.querySelectorAll('.otp-input').forEach(i => { i.value=''; i.classList.remove('filled'); });
+  document.getElementById('otp-status').innerHTML = '💡 Código de teste: <strong style="color:var(--neon-blue)">123456</strong>';
+  goTo('screen-welcome');
+}
+
+// =====================
+// TOAST
+// =====================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// =====================
+// MODAL OUTSIDE CLICK
+// =====================
+document.getElementById('modal-reserve').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// =====================
+// INIT — check localStorage
+// =====================
+(function init() {
+  const saved = localStorage.getItem('cs_authenticated');
+  if (saved) {
+    state.nome = localStorage.getItem('cs_nome') || '';
+    state.phone = localStorage.getItem('cs_phone') || '';
+    state.token = localStorage.getItem('cs_token') || '';
+    // still require fresh auth for security
+  }
+})();
+</script>
+</body>
+</html>
